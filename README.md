@@ -1,10 +1,10 @@
 # Relay
 Messaging service to send and receive any type of messages across the application.
 
-Using it:
-To use Relay, you need to start the service, which is the one time operation.
+<b>Using it</b>:
+<br>To use Relay, you need to start the service, which is the one time operation.
 
-Initialize and then start it by: 
+<b>Initialize and then start it by</b>: 
 
     private MessageService relay = Relay.instance();
     relay.start();

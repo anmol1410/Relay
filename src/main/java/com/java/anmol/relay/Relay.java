@@ -1,7 +1,9 @@
 package com.java.anmol.relay;
 
+import java.io.Serializable;
+
 @SuppressWarnings("WeakerAccess")
-public class Relay extends AbstractMessageService {
+public class Relay extends AbstractMessageService implements Cloneable, Serializable {
 
     /**
      * Get the singleton instance.
@@ -21,6 +23,18 @@ public class Relay extends AbstractMessageService {
 
     private Relay() {
         // For singleton.
+        if (instance() != null) {
+            throw new RuntimeException("Use instance() method to initialize Relay...");
+        }
+    }
+
+    @Override
+    public Relay clone() {
+        return instance();
+    }
+
+    protected Object readResolve() {
+        return instance();
     }
 
     private static class InstanceHolder {

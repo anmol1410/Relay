@@ -3,17 +3,24 @@ package com.java.anmol.relay;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.io.*;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Modifier;
+
 @SuppressWarnings({"unused", "UnusedAssignment"})
 public class RelayTest {
 
     private MessageService relay;
     private static boolean flagForTesting;
     private static int totalChanges;
+    private static String flagForString;
     private boolean isTeardownRequired = true;
 
     private enum Topics {
         TOPIC_ONE("TOPIC_ONE", "TOPIC_ONE_MESSAGE"),
-        TOPIC_TWO("TOPIC_TWO", "TOPIC_TWO_MESSAGE");
+        TOPIC_TWO("TOPIC_TWO", "TOPIC_TWO_MESSAGE"),
+        TOPIC_THREE("TOPIC_THREE", "TOPIC_THREE_MESSAGE");
 
         private String topicName;
         private String topicMsg;
@@ -44,6 +51,19 @@ public class RelayTest {
         }
     }
 
+
+    private class ReceiverWhichWorksOnStringFlag implements Callback {
+
+        private ReceiverWhichWorksOnStringFlag() {
+            Relay.instance().register(Topics.TOPIC_THREE.getTopicName(), this);
+        }
+
+        @Override
+        public void onReceive(Object message) {
+            flagForString += message;
+        }
+    }
+
     private class ReceiverWhichIncrementsIntFlag implements Callback {
 
         private ReceiverWhichIncrementsIntFlag() {
@@ -61,6 +81,7 @@ public class RelayTest {
         relay = Relay.instance();
         relay.start();
         totalChanges = 0;
+        flagForString = "";
         flagForTesting = false;
     }
 
@@ -227,5 +248,68 @@ public class RelayTest {
 
         Thread.sleep(50);
         receiverWhichWorksOnBooleanFlag = null;
+    }
+
+    @Test
+    public void verifyMsgsReceivedInCorrectOrder() throws InterruptedException {
+        ReceiverWhichWorksOnStringFlag receiverWhichWorksOnStringFlag = new ReceiverWhichWorksOnStringFlag();
+        StringBuilder expected = new StringBuilder();
+        for (int x = 0; x < 100; x++) {
+            relay.send(Topics.TOPIC_THREE.getTopicName(), x);
+            expected.append(x);
+        }
+        Thread.sleep(50);
+        Assert.assertEquals(expected.toString(), flagForString);
+        receiverWhichWorksOnStringFlag = null;
+    }
+
+    @Test
+    public void verifySingleReceiverRegisteredIfMoreThanOnce() throws InterruptedException {
+        ReceiverWhichWorksOnStringFlag receiverWhichWorksOnStringFlag = new ReceiverWhichWorksOnStringFlag();
+        Relay.instance().register(Topics.TOPIC_THREE.getTopicName(), receiverWhichWorksOnStringFlag);
+        Relay.instance().register(Topics.TOPIC_THREE.getTopicName(), receiverWhichWorksOnStringFlag);
+        Relay.instance().register(Topics.TOPIC_THREE.getTopicName(), receiverWhichWorksOnStringFlag);
+        Relay.instance().register(Topics.TOPIC_THREE.getTopicName(), receiverWhichWorksOnStringFlag);
+        Relay.instance().register(Topics.TOPIC_THREE.getTopicName(), receiverWhichWorksOnStringFlag);
+        StringBuilder expected = new StringBuilder();
+        for (int x = 0; x < 100; x++) {
+            relay.send(Topics.TOPIC_THREE.getTopicName(), x);
+            expected.append(x);
+        }
+        Thread.sleep(50);
+        Assert.assertEquals(expected.toString(), flagForString);
+        receiverWhichWorksOnStringFlag = null;
+    }
+
+    @Test(expected = InvocationTargetException.class)
+    public void verifyExceptionIfSingletonBreakByReflection() throws IllegalAccessException, InvocationTargetException, InstantiationException {
+        Constructor<?>[] constructors = Relay.class.getDeclaredConstructors();
+        for (Constructor<?> constructor : constructors) {
+            if (Modifier.isPrivate(constructor.getModifiers())) {
+                constructor.setAccessible(true);
+                Relay instance = (Relay) constructor.newInstance();
+            }
+        }
+    }
+
+    @Test
+    public void verifySameInstanceIfSingletonBreakByCloning() {
+        Relay instance1 = Relay.instance();
+        Relay instance2 = instance1.clone();
+        Assert.assertEquals(instance1, instance2);
+    }
+
+    @Test
+    public void verifySameInstanceIfSingletonBreakBySerialization() throws IOException, ClassNotFoundException {
+        String fileName = "file.text";
+        Relay instance1 = Relay.instance();
+        ObjectOutput out = new ObjectOutputStream(new FileOutputStream(fileName));
+        out.writeObject(instance1);
+        out.close();
+
+        ObjectInput in = new ObjectInputStream(new FileInputStream(fileName));
+        Relay instance2 = (Relay) in.readObject();
+
+        Assert.assertEquals(instance1, instance2);
     }
 }
